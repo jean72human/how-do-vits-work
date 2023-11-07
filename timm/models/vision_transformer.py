@@ -1037,7 +1037,7 @@ class VisionTransformer(nn.Module):
         dpr = [x.item() for x in torch.linspace(0, drop_path_rate, depth)]  # stochastic depth decay rule
         if isinstance(block_fn, Tuple):
             self.blocks = nn.Sequential(
-                block_fn[0](
+                *[block_fn[0](
                     dim=embed_dim,
                     num_heads=num_heads,
                     mlp_ratio=mlp_ratio,
@@ -1050,7 +1050,8 @@ class VisionTransformer(nn.Module):
                     norm_layer=norm_layer,
                     act_layer=act_layer,
                     mlp_layer=mlp_layer,
-                ),
+                )
+                for i in range(depth//2)],
                 *[block_fn[1](
                     dim=embed_dim,
                     num_heads=num_heads,
@@ -1065,21 +1066,7 @@ class VisionTransformer(nn.Module):
                     act_layer=act_layer,
                     mlp_layer=mlp_layer,
                 )
-                for i in range(depth-2)],
-                block_fn[2](
-                    dim=embed_dim,
-                    num_heads=num_heads,
-                    mlp_ratio=mlp_ratio,
-                    qkv_bias=qkv_bias,
-                    qk_norm=qk_norm,
-                    init_values=init_values,
-                    proj_drop=proj_drop_rate,
-                    attn_drop=attn_drop_rate,
-                    drop_path=dpr[0],
-                    norm_layer=norm_layer,
-                    act_layer=act_layer,
-                    mlp_layer=mlp_layer,
-                ))
+                for i in range(depth//2)])
         elif weight_sharing:
             self.blocks = nn.Sequential(*depth*[
             block_fn(
