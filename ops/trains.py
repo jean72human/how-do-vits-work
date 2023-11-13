@@ -55,7 +55,8 @@ def train(model, optimizer,
           train_args, val_args, gpu,
           writer=None,
           snapshot=-1, root="models_checkpoints", dataset_name=None, uid=None,
-          verbose=1):
+          verbose=1,
+          run=None):
     train_args = copy.deepcopy(train_args)
     val_args = copy.deepcopy(val_args)
     snapshot_cond = snapshot > 0 and dataset_name is not None and uid is not None
@@ -106,7 +107,7 @@ def train(model, optimizer,
         batch_time = time.time() - batch_time
 
         if writer is not None and (epoch + 1) % 1 == 0:
-            add_train_metrics(writer, train_metrics, epoch)
+            add_train_metrics(writer, train_metrics, epoch, run)
             template = "(%.2f sec/epoch) Epoch: %d, Loss: %.4f, lr: %.3e"
             print(template % (batch_time,
                               epoch,
@@ -115,7 +116,7 @@ def train(model, optimizer,
 
         if writer is not None and (epoch + 1) % 1 == 0:
             *test_metrics, cal_diag = tests.test(model, n_ff, dataset_val, verbose=False, gpu=gpu)
-            add_test_metrics(writer, test_metrics, epoch)
+            add_test_metrics(writer, test_metrics, epoch, run)
 
             cal_diag = torchvision.utils.make_grid(cal_diag)
             writer.add_image("test/calibration diagrams", cal_diag, global_step=epoch)
@@ -176,7 +177,7 @@ def train_epoch(optimizer, model, dataset,
     return loss_meter.avg, nll_meter.avg, l1_meter.avg, l2_meter.avg
 
 
-def add_train_metrics(writer, metrics, epoch):
+def add_train_metrics(writer, metrics, epoch, run=None):
     loss, nll, l1, l2 = metrics
 
     writer.add_scalar("train/loss", loss, global_step=epoch)
@@ -184,8 +185,18 @@ def add_train_metrics(writer, metrics, epoch):
     writer.add_scalar("train/l1", l1, global_step=epoch)
     writer.add_scalar("train/l2", l2, global_step=epoch)
 
+    if run is not None:
+        run.log(
+            {
+                "train/loss": loss,
+                "train/nll": nll,
+                "train/l1": l1,
+                "train/l2": l2
+            }
+        )
 
-def add_test_metrics(writer, metrics, epoch):
+
+def add_test_metrics(writer, metrics, epoch, run=None):
     nll_value, \
     cutoffs, cms, accs, uncs, ious, freqs, \
     topk_value, brier_value, \
@@ -202,3 +213,20 @@ def add_test_metrics(writer, metrics, epoch):
     writer.add_scalar("test/brier", brier_value, global_step=epoch)
     writer.add_scalar("test/ece", ece_value, global_step=epoch)
     writer.add_scalar("test/ecse", ecse_value, global_step=epoch)
+
+    if run is not None:
+        run.log(
+            {
+                "test/nll": nll_value,
+                "test/acc": accs[0],
+                "test/acc-90": accs[1],
+                "test/unc-90": uncs[1],
+                "test/iou": ious[0],
+                "test/iou-90": ious[1],
+                "test/freq-90": freqs[1],
+                "test/top-5": topk_value,
+                "test/brier": brier_value,
+                "test/ece": ece_value,
+                "test/ecse": ecse_value
+            }
+        )
